@@ -2,6 +2,9 @@ import discord
 import os
 import json
 from discord.ext import tasks
+from flask import Flask
+from threading import Thread
+
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -251,6 +254,23 @@ async def on_message(message):
         save_db(db)
 
         await message.channel.send(f"✅ {cible.mention} a reçu **{montant} berries** ! Prime totale : **{data['prime']} berries**.")
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Le bot est vivant !"
+
+def run():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+def keep_alive_web():
+    t = Thread(target=run)
+    t.start()
+
+keep_alive_web()
+
 
 # Lancement du bot
 token = os.getenv("TOKEN")
