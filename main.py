@@ -15,29 +15,26 @@ def load_data():
 def save_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=4)
-        
-        
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.guilds = True
+intents.members = True
 
 client = discord.Client(intents=intents)
 
-@client.event
-async def on_ready():
-    print(f'Connecté en tant que {client.user}')
-
 @tasks.loop(minutes=5)
 async def keep_alive():
-    guild = client.guilds[0]  # Le serveur sur lequel ton bot est (ou adapte pour plusieurs serveurs)
-    channel = discord.utils.get(guild.text_channels, name="commandebot")
-    if channel:
-        await channel.send("+list crew")
+    for guild in client.guilds:
+        channel = discord.utils.get(guild.text_channels, name="commandebot")
+        if channel:
+            await channel.send("+list crew")
 
 @client.event
 async def on_ready():
-    print(f'Connecté en tant que {client.user}')
-    keep_alive.start()  # Démarrer la tâche répétée
+    print(f'✅ Connecté en tant que {client.user}')
+    keep_alive.start()
+
 @client.event
 async def on_message(message):
     if message.author == client.user:
@@ -55,7 +52,6 @@ async def on_message(message):
 
         data[user_id]["xp"] += 10
 
-        # Système de niveau simple : 100 XP = level up
         if data[user_id]["xp"] >= 100:
             data[user_id]["xp"] = 0
             data[user_id]["niveau"] += 1
@@ -86,17 +82,14 @@ async def on_message(message):
         user_id = str(message.author.id)
         data = load_data()
 
-        # Créer ou mettre à jour l'utilisateur
         if user_id not in data:
             data[user_id] = {"xp": 0, "niveau": 1}
 
-        # Supprimer les anciennes infos d’équipage
         data[user_id]["crew"] = crew_name
         data[user_id]["isCaptain"] = True
         data[user_id]["invites"] = data[user_id].get("invites", [])
         save_data(data)
 
-        # Ajouter le rôle Pirate
         guild = message.guild
         role_name = "Pirate"
         pirate_role = discord.utils.get(guild.roles, name=role_name)
@@ -108,7 +101,6 @@ async def on_message(message):
             await message.author.add_roles(pirate_role)
 
         await message.channel.send(f"🏴‍☠️ Tu es désormais le capitaine de **{crew_name}**, {message.author.mention} !")
-
 
     elif message.content.startswith('+list crew'):
         data = load_data()
@@ -131,7 +123,7 @@ async def on_message(message):
         jobs = ["Cuisinier", "Médecin", "Navigateur", "Charpentier", "Archéologue"]
         parts = message.content.split(" ", 2)
         if len(parts) < 3:
-            await message.channel.send("❌ Utilise : `+métier choice NomDuMétier`")
+            await message.channel.send("❌ Utilise : `+choice job NomDuMétier`")
             return
 
         chosen_job = parts[2].capitalize()
@@ -183,7 +175,6 @@ async def on_message(message):
 
         await message.channel.send(f"📨 {target.mention}, tu as été invité à rejoindre l’équipage **{crew_name}** ! Utilise `+join crew {crew_name}` pour accepter.")
 
-
     elif message.content.startswith('+join crew'):
         parts = message.content.split(" ", 2)
         if len(parts) < 3:
@@ -213,63 +204,64 @@ async def on_message(message):
         await message.channel.send(f"✅ Tu as rejoint l’équipage **{crew_name}**, bienvenue à bord, {message.author.mention} !")
 
     elif message.content.startswith('+info crew'):
-     parts = message.content.split(" ", 2)
-     if len(parts) < 3:
-        await message.channel.send("❌ Utilise : `+info crew NomÉquipage`")
-        return
+        parts = message.content.split(" ", 2)
+        if len(parts) < 3:
+            await message.channel.send("❌ Utilise : `+info crew NomÉquipage`")
+            return
 
-     crew_name = parts[2].strip()
-     data = load_data()
-     members = []
-     total_prime = 0
+        crew_name = parts[2].strip()
+        data = load_data()
+        members = []
+        total_prime = 0
 
-     for uid, infos in data.items():
-        if infos.get("crew", "").lower() == crew_name.lower():
-            try:
-                user = await client.fetch_user(int(uid))
-            except:
-                continue  # au cas où l'utilisateur n'existe plus
-            job = infos.get("job", "Aucun métier")
-            is_captain = infos.get("isCaptain", False)
-            prime = infos.get("prime", 0)
-            total_prime += prime
+        for uid, infos in data.items():
+            if infos.get("crew", "").lower() == crew_name.lower():
+                try:
+                    user = await client.fetch_user(int(uid))
+                except:
+                    continue
+                job = infos.get("job", "Aucun métier")
+                is_captain = infos.get("isCaptain", False)
+                prime = infos.get("prime", 0)
+                total_prime += prime
 
-            member_info = f"👤 {user.name} — {job}" + (" (Capitaine)" if is_captain else "")
-            member_info += f" — 💰 {prime} Berries"
-            members.append(member_info)
+                member_info = f"👤 {user.name} — {job}" + (" (Capitaine)" if is_captain else "")
+                member_info += f" — 💰 {prime} Berries"
+                members.append(member_info)
 
-     if not members:
-        await message.channel.send("❌ Aucun membre trouvé pour cet équipage.")
-        return
+        if not members:
+            await message.channel.send("❌ Aucun membre trouvé pour cet équipage.")
+            return
 
-     embed = discord.Embed(title=f"📋    Infos sur l’équipage : {crew_name}",   color=discord.Color.blue())
-     embed.description = "\n".join(members)
-     embed.set_footer(text=f"💵 Prime totale de l’équipage : {total_prime} Berries")
-     await     message.channel.send(embed=embed)
+        embed = discord.Embed(title=f"📋 Infos sur l’équipage : {crew_name}", color=discord.Color.blue())
+        embed.description = "\n".join(members)
+        embed.set_footer(text=f"💵 Prime totale de l’équipage : {total_prime} Berries")
+        await message.channel.send(embed=embed)
+
     elif message.content.startswith('+add prime'):
-     if not any(role.name.lower() == "admin" for role in message.author.roles):
-        await message.channel.send("🚫 Seuls les Admins peuvent utiliser cette commande.")
-        return
+        if not any(role.name.lower() == "admin" for role in message.author.roles):
+            await message.channel.send("🚫 Seuls les Admins peuvent utiliser cette commande.")
+            return
 
-    parts = message.content.split()
-    if len(parts) < 3 or not parts[2].isdigit() or not message.mentions:
-        await message.channel.send(" `")
-        return
+        parts = message.content.split()
+        if len(parts) < 3 or not parts[2].isdigit() or not message.mentions:
+            await message.channel.send("❌ Utilise : `+add prime @utilisateur montant`")
+            return
 
-    montant = int(parts[2])
-    cible = message.mentions[0]
-    cible_id = str(cible.id)
+        montant = int(parts[2])
+        cible = message.mentions[0]
+        cible_id = str(cible.id)
 
-    data = load_data()
-    if cible_id not in data:
-        data[cible_id] = {"xp": 0, "niveau": 1}
+        data = load_data()
+        if cible_id not in data:
+            data[cible_id] = {"xp": 0, "niveau": 1}
 
-    data[cible_id]["prime"] = data[cible_id].get("prime", 0) + montant
-    save_data(data)
+        data[cible_id]["prime"] = data[cible_id].get("prime", 0) + montant
+        save_data(data)
 
-    await message.channel.send(f"✅ {cible.mention} a reçu **{montant} berries** de prime ! Prime totale : **{data[cible_id]['prime']} berries**.")
-    
+        await message.channel.send(f"✅ {cible.mention} a reçu **{montant} berries** de prime ! Prime totale : **{data[cible_id]['prime']} berries**.")
 
+# Lancement du bot
 token = os.getenv("TOKEN")
 if token:
     client.run(token)
