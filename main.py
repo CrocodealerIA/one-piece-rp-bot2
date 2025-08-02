@@ -37,10 +37,9 @@ async def on_ready():
     print(f'✅ Connecté en tant que {client.user}')
     keep_alive.start()
 
-@client.event
+@bot.event
 async def on_message(message):
-    if message.author == client.user:
-        return
+    await bot.process_commands(message)
 
     db = load_db()
     user_id = str(message.author.id)
