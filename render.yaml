@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: onepiece-rp-bot
+    env: python
+    plan: free
+    buildCommand: ""
+    startCommand: bash start.sh
+    autoDeploy: false
+    envVars:
+      - key: TOKEN
+        sync: false
