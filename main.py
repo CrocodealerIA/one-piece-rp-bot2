@@ -37,7 +37,7 @@ async def on_ready():
     print(f'✅ Connecté en tant que {client.user}')
     keep_alive.start()
 
-@bot.event
+@client.event
 async def on_message(message):
     await bot.process_commands(message)
 
