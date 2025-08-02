@@ -28,7 +28,7 @@ async def keep_alive():
     for guild in client.guilds:
         channel = discord.utils.get(guild.text_channels, name="commandebot")
         if channel:
-            await channel.send("+list crew")
+            await channel.send("+test")
 
 @client.event
 async def on_ready():
