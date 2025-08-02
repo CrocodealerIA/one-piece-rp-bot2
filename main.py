@@ -1,6 +1,7 @@
 import discord
 import os
 import json
+from discord.ext import tasks
 
 DATA_FILE = "data.json"
 
@@ -26,6 +27,17 @@ client = discord.Client(intents=intents)
 async def on_ready():
     print(f'Connecté en tant que {client.user}')
 
+@tasks.loop(minutes=5)
+async def keep_alive():
+    guild = client.guilds[0]  # Le serveur sur lequel ton bot est (ou adapte pour plusieurs serveurs)
+    channel = discord.utils.get(guild.text_channels, name="commandebot")
+    if channel:
+        await channel.send("+list crew")
+
+@client.event
+async def on_ready():
+    print(f'Connecté en tant que {client.user}')
+    keep_alive.start()  # Démarrer la tâche répétée
 @client.event
 async def on_message(message):
     if message.author == client.user:
