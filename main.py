@@ -1,6 +1,5 @@
 import discord
 import os
-from keep_alive import keep_alive
 import json
 
 DATA_FILE = "data.json"
@@ -258,8 +257,6 @@ async def on_message(message):
 
     await message.channel.send(f"✅ {cible.mention} a reçu **{montant} berries** de prime ! Prime totale : **{data[cible_id]['prime']} berries**.")
     
-
-keep_alive()
 
 token = os.getenv("TOKEN")
 if token:
