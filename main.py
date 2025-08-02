@@ -1,20 +1,7 @@
 import discord
 import os
-import json
 from discord.ext import tasks
-
-DATA_FILE = "data.json"
-
-def load_data():
-    try:
-        with open(DATA_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return {}
-
-def save_data(data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=4)
+from replit import db  # Import Replit DB
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -38,36 +25,39 @@ async def on_ready():
 @client.event
 async def on_message(message):
 
+    if message.author == client.user:
+        return
+
     if message.content.startswith('$hello'):
         await message.channel.send('Hello!')
 
     elif message.content.startswith('$xp'):
         user_id = str(message.author.id)
-        data = load_data()
 
-        if user_id not in data:
-            data[user_id] = {"xp": 0, "niveau": 1}
+        if user_id not in db:
+            db[user_id] = {"xp": 0, "niveau": 1}
 
-        data[user_id]["xp"] += 10
+        data = db[user_id]
+        data["xp"] += 10
 
-        if data[user_id]["xp"] >= 100:
-            data[user_id]["xp"] = 0
-            data[user_id]["niveau"] += 1
-            await message.channel.send(f"🎉 {message.author.mention} est monté niveau {data[user_id]['niveau']} !")
+        if data["xp"] >= 100:
+            data["xp"] = 0
+            data["niveau"] += 1
+            await message.channel.send(f"🎉 {message.author.mention} est monté niveau {data['niveau']} !")
         else:
-            await message.channel.send(f"🔹 {message.author.name}, tu as {data[user_id]['xp']} XP.")
+            await message.channel.send(f"🔹 {message.author.name}, tu as {data['xp']} XP.")
 
-        save_data(data)
+        db[user_id] = data
 
     elif message.content.startswith('$profil'):
         user_id = str(message.author.id)
-        data = load_data()
 
-        if user_id not in data:
+        if user_id not in db:
             await message.channel.send("Aucune donnée trouvée. Utilise `$xp` pour commencer !")
         else:
-            xp = data[user_id]["xp"]
-            niveau = data[user_id]["niveau"]
+            data = db[user_id]
+            xp = data.get("xp", 0)
+            niveau = data.get("niveau", 1)
             await message.channel.send(f"🧾 {message.author.name} | Niveau : {niveau} | XP : {xp}")
 
     elif message.content.startswith('+crew'):
@@ -78,15 +68,16 @@ async def on_message(message):
 
         crew_name = parts[1].strip()
         user_id = str(message.author.id)
-        data = load_data()
 
-        if user_id not in data:
-            data[user_id] = {"xp": 0, "niveau": 1}
+        if user_id not in db:
+            db[user_id] = {"xp": 0, "niveau": 1}
 
-        data[user_id]["crew"] = crew_name
-        data[user_id]["isCaptain"] = True
-        data[user_id]["invites"] = data[user_id].get("invites", [])
-        save_data(data)
+        data = db[user_id]
+        data["crew"] = crew_name
+        data["isCaptain"] = True
+        if "invites" not in data:
+            data["invites"] = []
+        db[user_id] = data
 
         guild = message.guild
         role_name = "Pirate"
@@ -101,13 +92,16 @@ async def on_message(message):
         await message.channel.send(f"🏴‍☠️ Tu es désormais le capitaine de **{crew_name}**, {message.author.mention} !")
 
     elif message.content.startswith('+list crew'):
-        data = load_data()
         embed = discord.Embed(title="📜 Liste des Équipages", color=discord.Color.gold())
         found = False
 
-        for user_id, infos in data.items():
+        for user_id in db.keys():
+            infos = db[user_id]
             if "crew" in infos:
-                user = await client.fetch_user(int(user_id))
+                try:
+                    user = await client.fetch_user(int(user_id))
+                except:
+                    continue
                 embed.add_field(name=infos["crew"], value=f"Capitaine : {user.name}", inline=False)
                 found = True
 
@@ -129,18 +123,18 @@ async def on_message(message):
             await message.channel.send(f"❌ Métier invalide. Choisis parmi : {', '.join(jobs)}")
             return
 
-        data = load_data()
         user_id = str(message.author.id)
+        if user_id not in db:
+            db[user_id] = {"xp": 0, "niveau": 1}
 
-        if user_id not in data:
-            data[user_id] = {"xp": 0, "niveau": 1}
+        data = db[user_id]
 
-        if "job" in data[user_id]:
+        if "job" in data:
             await message.channel.send("⚠️ Tu as déjà choisi un métier !")
             return
 
-        data[user_id]["job"] = chosen_job
-        save_data(data)
+        data["job"] = chosen_job
+        db[user_id] = data
         await message.channel.send(f"🛠️ Tu es maintenant un **{chosen_job}**, {message.author.mention} !")
 
     elif message.content.startswith('+inv crew'):
@@ -151,25 +145,29 @@ async def on_message(message):
         target = message.mentions[0]
         inviter_id = str(message.author.id)
         target_id = str(target.id)
-        data = load_data()
 
-        if inviter_id not in data or "crew" not in data[inviter_id] or not data[inviter_id].get("isCaptain", False):
+        if inviter_id not in db:
+            await message.channel.send("❌ Tu dois être capitaine d’un équipage pour inviter quelqu’un.")
+            return
+        data_inviter = db[inviter_id]
+        if "crew" not in data_inviter or not data_inviter.get("isCaptain", False):
             await message.channel.send("❌ Tu dois être capitaine d’un équipage pour inviter quelqu’un.")
             return
 
-        if target_id not in data:
-            data[target_id] = {"xp": 0, "niveau": 1}
+        if target_id not in db:
+            db[target_id] = {"xp": 0, "niveau": 1}
 
-        if "invites" not in data[target_id]:
-            data[target_id]["invites"] = []
+        data_target = db[target_id]
+        if "invites" not in data_target:
+            data_target["invites"] = []
 
-        crew_name = data[inviter_id]["crew"]
-        if crew_name in data[target_id]["invites"]:
+        crew_name = data_inviter["crew"]
+        if crew_name in data_target["invites"]:
             await message.channel.send("⚠️ Cette personne a déjà une invitation pour cet équipage.")
             return
 
-        data[target_id]["invites"].append(crew_name)
-        save_data(data)
+        data_target["invites"].append(crew_name)
+        db[target_id] = data_target
 
         await message.channel.send(f"📨 {target.mention}, tu as été invité à rejoindre l’équipage **{crew_name}** ! Utilise `+join crew {crew_name}` pour accepter.")
 
@@ -181,23 +179,24 @@ async def on_message(message):
 
         crew_name = parts[2].strip()
         user_id = str(message.author.id)
-        data = load_data()
 
-        if user_id not in data:
-            data[user_id] = {"xp": 0, "niveau": 1}
+        if user_id not in db:
+            db[user_id] = {"xp": 0, "niveau": 1}
 
-        if "crew" in data[user_id]:
+        data = db[user_id]
+
+        if "crew" in data:
             await message.channel.send("❌ Tu fais déjà partie d’un équipage.")
             return
 
-        if crew_name not in data[user_id].get("invites", []):
+        if crew_name not in data.get("invites", []):
             await message.channel.send("🚫 Tu n’as pas d’invitation pour cet équipage.")
             return
 
-        data[user_id]["crew"] = crew_name
-        data[user_id]["isCaptain"] = False
-        data[user_id]["invites"].remove(crew_name)
-        save_data(data)
+        data["crew"] = crew_name
+        data["isCaptain"] = False
+        data["invites"].remove(crew_name)
+        db[user_id] = data
 
         await message.channel.send(f"✅ Tu as rejoint l’équipage **{crew_name}**, bienvenue à bord, {message.author.mention} !")
 
@@ -208,11 +207,11 @@ async def on_message(message):
             return
 
         crew_name = parts[2].strip()
-        data = load_data()
         members = []
         total_prime = 0
 
-        for uid, infos in data.items():
+        for uid in db.keys():
+            infos = db[uid]
             if infos.get("crew", "").lower() == crew_name.lower():
                 try:
                     user = await client.fetch_user(int(uid))
@@ -250,14 +249,14 @@ async def on_message(message):
         cible = message.mentions[0]
         cible_id = str(cible.id)
 
-        data = load_data()
-        if cible_id not in data:
-            data[cible_id] = {"xp": 0, "niveau": 1}
+        if cible_id not in db:
+            db[cible_id] = {"xp": 0, "niveau": 1}
 
-        data[cible_id]["prime"] = data[cible_id].get("prime", 0) + montant
-        save_data(data)
+        data = db[cible_id]
+        data["prime"] = data.get("prime", 0) + montant
+        db[cible_id] = data
 
-        await message.channel.send(f"✅ {cible.mention} a reçu **{montant} berries** de prime ! Prime totale : **{data[cible_id]['prime']} berries**.")
+        await message.channel.send(f"✅ {cible.mention} a reçu **{montant} berries** de prime ! Prime totale : **{data['prime']} berries**.")
 
 # Lancement du bot
 token = os.getenv("TOKEN")
